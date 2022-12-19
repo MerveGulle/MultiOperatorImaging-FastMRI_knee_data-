@@ -63,9 +63,25 @@ class KneeDataset():
             self.xref[i] = decode(self.kspace[i:i+1],self.sens_map[i:i+1])
      
     def __getitem__(self,index):
-        return self.x0[index], self.xref[index], self.kspace[index], self.sens_map[index], index
+        self.random = torch.rand((self.kspace.shape[1],self.kspace.shape[2]))
+        # 0.173 --> mask_loss / mask = 0.4 for std = 0.25
+        self.rand_mask = (self.random * self.gauss_kernel) > 0.173
+        self.rand_mask[158:162,182:186] = 0.0 #4x4 small ACS area
+        self.rand_mask[:,::self.R] = 1.0
+        self.rand_mask[:,0:18] = 1.0   
+        return self.x0[index], self.xref[index], self.kspace[index], self.sens_map[index], self.rand_mask, index
     def __len__(self):
         return self.n_slices   
+
+# Gaussian kernel generator
+def gauss_gen(Nx, Ny, sigma):
+    xs = torch.linspace(-1, 1, steps=Nx)
+    ys = torch.linspace(-1, 1, steps=Ny)
+    x, y = torch.meshgrid(xs, ys)
+    z = (x*x + y*y)/(2*sigma)
+    z = torch.exp(-z)
+    z = z / torch.max(z)
+    return z
 
 # complex 1 channel to real 2 channels
 def ch1to2(data1):       
