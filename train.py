@@ -51,21 +51,29 @@ loss_arr       = np.zeros(params['num_epoch'])
 loss_arr_valid = np.zeros(params['num_epoch'])
 
 for epoch in range(params['num_epoch']):
-    for i, (x0, xref, kspace, sens_map, index) in enumerate(loaders['train_loader']):
-        x0       = x0.to(device)
-        xref     = xref.to(device)
-        sens_map = sens_map.to(device)
-        kspace   = kspace.to(device)
-        # Forward pass
+    for i, (x0, xref, kspace, sens_map, rand_mask, index) in enumerate(loaders['train_loader']):
+        x0        = x0.to(device)
+        xref      = xref.to(device)
+        sens_map  = sens_map.to(device)
+        kspace    = kspace.to(device)
+        rand_mask = rand_mask.to(device)
+        # Forward pass for original operation
         xk = x0
         for k in range(params['K']):
             L, zk = denoiser(xk)
             xk = model.DC_layer(x0,zk,L,sens_map,mask)
+        x_recon = xk
+        # Forward pass for new operation
+        x0 = sf.encode(x_recon,sens_map,rand_mask)  # new zerofilled image
+        xk = x0
+        for k in range(params['K']):
+            L, zk = denoiser(xk)
+            xk = model.DC_layer(x0,zk,L,sens_map,mask)
+        x_recon_new = xk
         
         optimizer.zero_grad()
         # Loss calculation
-        #loss = sf.L1L2Loss(xref, xk)
-        loss = sf.L1L2Loss(kspace, sf.encode(xk, sens_map, mask=None))
+        loss = sf.MOIL2Loss(kspace, sf.encode(xk, sens_map, mask=None), x_recon, x_recon_new)
         
         if (torch.isnan(loss)):
             torch.save(denoiser.state_dict(), 'model_t_' + f'_ResNet_{epoch:03d}'+ '.pt')
