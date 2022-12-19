@@ -127,11 +127,11 @@ def prepare_test_loaders(test_dataset,params):
 
     return loaders, datasets
 
-# Normalised L1-L2 loss calculation
-# loss = normalised L1 loss + normalised L2 loss
-def L1L2Loss(ref, recon):
-    return torch.norm(recon-ref,p=1)/torch.norm(ref,p=1) + torch.norm(recon-ref,p=2)/torch.norm(ref,p=2)
-
+# MOI L2 loss calculation
+# loss = l2(y_ref-y_recon) + l2(x_recon-x_recon_new)
+def MOIL2Loss(y_ref, y_recon, x_recon, x_recon_new):
+    return torch.norm(y_ref-y_recon, p=2) + torch.norm(x_recon-x_recon_new, p=2)
+    
 
 
 
