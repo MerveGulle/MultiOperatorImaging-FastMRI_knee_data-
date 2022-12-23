@@ -33,8 +33,10 @@ def nmse(x,xref):
 class KneeDataset():
     def __init__(self,data_path,coil_path,R,num_slice,num_ACS=24):
         f = h5py.File(data_path, "r")
-        start_slice = 10
-        r = 40
+        start_slice = 0
+        r = 1
+        self.num_ACS = num_ACS
+        
         self.kspace    = f['kspace'][start_slice:start_slice+num_slice*r:r]
         self.kspace    = torch.from_numpy(self.kspace)
         
@@ -53,7 +55,8 @@ class KneeDataset():
         
         self.x0   = torch.empty(self.kspace.shape[0:3], dtype=torch.cfloat)
         self.xref = torch.empty(self.kspace.shape[0:3], dtype=torch.cfloat)
-        self.R    = 1/(torch.abs(self.mask).sum()/(self.kspace.shape[1]*self.kspace.shape[2]))
+        # self.R    = 1/(torch.abs(self.mask).sum()/(self.kspace.shape[1]*self.kspace.shape[2]))
+        self.R = R
         for i in range(self.kspace.shape[0]):
             norm_value = torch.max(torch.abs(self.kspace[i:i+1]))
             self.kspace[i] = self.kspace[i:i+1] / norm_value
@@ -63,12 +66,15 @@ class KneeDataset():
             self.xref[i] = decode(self.kspace[i:i+1],self.sens_map[i:i+1])
      
     def __getitem__(self,index):
+        self.gauss_kernel = gauss_gen(self.mask.shape[0], self.mask.shape[1], sigma=0.5)
         self.random = torch.rand((self.kspace.shape[1],self.kspace.shape[2]))
         # 0.173 --> mask_loss / mask = 0.4 for std = 0.25
-        self.rand_mask = (self.random * self.gauss_kernel) > 0.173
+        self.rand_mask = (self.random * self.gauss_kernel) > 0.6
         self.rand_mask[158:162,182:186] = 0.0 #4x4 small ACS area
         self.rand_mask[:,::self.R] = 1.0
         self.rand_mask[:,0:18] = 1.0   
+        self.rand_mask[:,-18:self.kspace.shape[2]] = 1.0
+        self.rand_mask[:,(self.kspace.shape[2]-self.num_ACS)//2:(self.kspace.shape[2]+self.num_ACS)//2] = 1.0
         return self.x0[index], self.xref[index], self.kspace[index], self.sens_map[index], self.rand_mask, index
     def __len__(self):
         return self.n_slices   
@@ -146,7 +152,7 @@ def prepare_test_loaders(test_dataset,params):
 # MOI L2 loss calculation
 # loss = l2(y_ref-y_recon) + l2(x_recon-x_recon_new)
 def MOIL2Loss(y_ref, y_recon, x_recon, x_recon_new):
-    return torch.norm(y_ref-y_recon, p=2) + torch.norm(x_recon-x_recon_new, p=2)
+    return torch.norm(y_ref-y_recon, p=2)/torch.norm(y_ref, p=2) + torch.norm(x_recon-x_recon_new, p=2)/torch.norm(x_recon, p=2)
     
 
 

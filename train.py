@@ -56,7 +56,7 @@ for epoch in range(params['num_epoch']):
         xref      = xref.to(device)
         sens_map  = sens_map.to(device)
         kspace    = kspace.to(device)
-        rand_mask = rand_mask.to(device)
+        rand_mask = rand_mask[0].to(device)
         # Forward pass for original operation
         xk = x0
         for k in range(params['K']):
@@ -64,16 +64,16 @@ for epoch in range(params['num_epoch']):
             xk = model.DC_layer(x0,zk,L,sens_map,mask)
         x_recon = xk
         # Forward pass for new operation
-        x0 = sf.encode(x_recon,sens_map,rand_mask)  # new zerofilled image
+        x0 = sf.decode(sf.encode(x_recon,sens_map,rand_mask),sens_map)  # new zerofilled image
         xk = x0
         for k in range(params['K']):
             L, zk = denoiser(xk)
-            xk = model.DC_layer(x0,zk,L,sens_map,mask)
+            xk = model.DC_layer(x0,zk,L,sens_map,rand_mask)
         x_recon_new = xk
         
         optimizer.zero_grad()
         # Loss calculation
-        loss = sf.MOIL2Loss(kspace, sf.encode(xk, sens_map, mask=None), x_recon, x_recon_new)
+        loss = sf.MOIL2Loss(kspace*mask[None,:,:,None], sf.encode(xk, sens_map, mask=mask), x_recon, x_recon_new)
         
         if (torch.isnan(loss)):
             torch.save(denoiser.state_dict(), 'model_t_' + f'_ResNet_{epoch:03d}'+ '.pt')
@@ -92,21 +92,29 @@ for epoch in range(params['num_epoch']):
         # Optimize
         optimizer.step()
         
-    for i, (x0, xref, kspace, sens_map, index) in enumerate(loaders['valid_loader']):
+    for i, (x0, xref, kspace, sens_map, rand_mask, index) in enumerate(loaders['valid_loader']):
         with torch.no_grad():
             x0 = x0.to(device)
             xref = xref.to(device)
             sens_map = sens_map.to(device)
             kspace = kspace.to(device)
-            # Forward pass
+            rand_mask = rand_mask[0].to(device)
+            # Forward pass for original operation
             xk = x0
             for k in range(params['K']):
                 L, zk = denoiser(xk)
                 xk = model.DC_layer(x0,zk,L,sens_map,mask)
+            x_recon = xk
+            # Forward pass for new operation
+            x0 = sf.decode(sf.encode(x_recon,sens_map,rand_mask),sens_map)  # new zerofilled image
+            xk = x0
+            for k in range(params['K']):
+                L, zk = denoiser(xk)
+                xk = model.DC_layer(x0,zk,L,sens_map,rand_mask)
+            x_recon_new = xk
             
             # Loss calculation
-            #loss = sf.L1L2Loss(xref, xk)
-            loss = sf.L1L2Loss(kspace, sf.encode(xk, sens_map, mask=None))
+            loss = sf.MOIL2Loss(kspace*mask[None,:,:,None], sf.encode(xk, sens_map, mask=mask), x_recon, x_recon_new)
             loss_arr_valid[epoch] += loss.item()/len(datasets['valid_dataset'])
         
         if ((epoch+1)%5==0):
@@ -117,7 +125,7 @@ for epoch in range(params['num_epoch']):
     scheduler.step()
     
     SSIM = (ssim(np.abs(xref.cpu().detach().numpy()[0,:,:]), 
-                 np.abs(xk.cpu().detach().numpy()[0,:,:]), 
+                 np.abs(x_recon.cpu().detach().numpy()[0,:,:]), 
                  data_range=np.abs(xref.cpu().detach().numpy()[0,:,:].max() 
                                    - np.abs(xref.cpu().detach().numpy()[0,:,:].min()))))
     
@@ -127,7 +135,7 @@ for epoch in range(params['num_epoch']):
     print (f'Epoch [{epoch+1}/{params["num_epoch"]}], \
            Loss training: {loss_arr[epoch]:.4f}, \
            Loss validation: {loss_arr_valid[epoch]:.4f},  \
-           L: {L:.4f}, \
+           L: {L.detach().cpu().numpy():.4f}, \
            SSIM: {SSIM:.4f}')
     print ('-----------------------------')
 

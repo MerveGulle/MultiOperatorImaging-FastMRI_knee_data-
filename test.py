@@ -46,9 +46,9 @@ mask = dataset.mask.to(device)
 ############## TEST CODE ###########################
 ####################################################
 denoiser = model.ResNet().to(device)
-denoiser.load_state_dict(torch.load('model_t__ResNet_200.pt'))
+denoiser.load_state_dict(torch.load('model_t__MOI_160.pt'))
 denoiser.eval()
-for i, (x0, xref, kspace, sens_map, index) in enumerate(loaders['test_loader']):
+for i, (x0, xref, kspace, sens_map, rand_mask, index) in enumerate(loaders['test_loader']):
     with torch.no_grad():
         x0 = x0.to(device)
         xref = xref.to(device)
@@ -74,7 +74,7 @@ for i, (x0, xref, kspace, sens_map, index) in enumerate(loaders['test_loader']):
         nmse_0 = sf.nmse(x0,xref)
         nmse_k = sf.nmse(xk,xref)
         nmse_c = sf.nmse(xc,xref)
-        
+        '''
         figure = plt.figure(figsize=(368/54.5,320/54.5))
         plt.imshow(x0,cmap='gray')
         plt.title(f'zero_filled_slice:{index.item():03d}', fontsize=20)
@@ -85,7 +85,7 @@ for i, (x0, xref, kspace, sens_map, index) in enumerate(loaders['test_loader']):
         ax.xaxis.label.set_color('white')
         ax.set_yticklabels([])
         ax.set_xticklabels([])
-        #plt.show()
+        plt.show()
         figure.savefig('x0'+f'_{i:03d}'+'.png')   
         
         figure = plt.figure(figsize=(368/54.5,320/54.5))
@@ -98,12 +98,12 @@ for i, (x0, xref, kspace, sens_map, index) in enumerate(loaders['test_loader']):
         ax.xaxis.label.set_color('white')
         ax.set_yticklabels([])
         ax.set_xticklabels([])
-        #plt.show()
+        plt.show()
         figure.savefig('x'+f'_CG_{i:03d}'+'.png') 
-        
+        '''
         figure = plt.figure(figsize=(368/54.5,320/54.5))
         plt.imshow(xk,cmap='gray')
-        plt.title(f'ResNet_slice:{index.item():03d}', fontsize=20)
+        plt.title(f'MOI_slice:{index.item():03d}', fontsize=20)
         ax = plt.gca()
         label = ax.set_xlabel('NMSE:'+f'{nmse_k:,.3f}'+'\n'+
                               'SSIM:'+f'{ssim_k:,.3f}', fontsize = 20)
@@ -111,15 +111,15 @@ for i, (x0, xref, kspace, sens_map, index) in enumerate(loaders['test_loader']):
         ax.xaxis.label.set_color('white')
         ax.set_yticklabels([])
         ax.set_xticklabels([])
-        #plt.show()
-        figure.savefig('x_ResNet'+f'_{i:03d}'+'.png') 
-        
+        plt.show()
+        figure.savefig('x_MOI'+f'_{i:03d}'+'.png') 
+        '''
         figure = plt.figure(figsize=(368/54.5,320/54.5))
         plt.imshow(xref,cmap='gray')
         plt.title(f'reference_slice:{index.item():03d}', fontsize=20)
         ax = plt.gca()
         ax.set_yticklabels([])
         ax.set_xticklabels([])
-        #plt.show()
+        plt.show()
         figure.savefig('xref'+f'_{i:03d}'+'.png')  
-
+        '''
